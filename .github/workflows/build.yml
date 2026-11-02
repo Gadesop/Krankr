@@ -1,0 +1,787 @@
+
+name: Build KRANKR APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Generate Android project
+        run: |
+          mkdir -p app/src/main/java/com/kuro/krankr
+
+          cat << 'EOF' > settings.gradle.kts
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "KRANKR"
+          include(":app")
+          EOF
+
+          cat << 'EOF' > build.gradle.kts
+          plugins {
+              id("com.android.application") version "8.7.3" apply false
+              id("org.jetbrains.kotlin.android") version "2.0.21" apply false
+              id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false
+          }
+          EOF
+
+          echo "android.useAndroidX=true" > gradle.properties
+
+          cat << 'EOF' > app/build.gradle.kts
+          plugins {
+              id("com.android.application")
+              id("org.jetbrains.kotlin.android")
+              id("org.jetbrains.kotlin.plugin.compose")
+          }
+
+          android {
+              namespace = "com.kuro.krankr"
+              compileSdk = 35
+
+              defaultConfig {
+                  applicationId = "com.kuro.krankr"
+                  minSdk = 23
+                  targetSdk = 35
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+
+          dependencies {
+              implementation(platform("androidx.compose:compose-bom:2024.12.01"))
+              implementation("androidx.activity:activity-compose:1.9.3")
+              implementation("androidx.compose.ui:ui")
+              implementation("androidx.compose.ui:ui-graphics")
+              implementation("androidx.compose.ui:ui-tooling-preview")
+              implementation("androidx.compose.material3:material3")
+              implementation("androidx.compose.foundation:foundation")
+          }
+          EOF
+
+          cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <application
+                  android:theme="@android:style/Theme.Material.Light.NoActionBar"
+                  android:label="KRANKR"
+                  android:allowBackup="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > app/src/main/java/com/kuro/krankr/MainActivity.kt
+          package com.kuro.krankr
+
+          import android.os.Bundle
+          import android.content.Context
+          import androidx.activity.ComponentActivity
+          import androidx.activity.compose.setContent
+          import androidx.compose.foundation.*
+          import androidx.compose.foundation.layout.*
+          import androidx.compose.foundation.lazy.LazyColumn
+          import androidx.compose.foundation.lazy.items
+          import androidx.compose.foundation.shape.RoundedCornerShape
+          import androidx.compose.foundation.text.BasicTextField
+          import androidx.compose.material3.*
+          import androidx.compose.runtime.*
+          import androidx.compose.ui.*
+          import androidx.compose.ui.draw.clip
+          import androidx.compose.ui.graphics.*
+          import androidx.compose.ui.text.font.FontWeight
+          import androidx.compose.ui.text.style.TextOverflow
+          import androidx.compose.ui.unit.*
+          import kotlinx.coroutines.delay
+
+          private val Background = Color(0xFF090B14)
+          private val Panel = Color(0xFF151A2A)
+          private val Purple = Color(0xFF9B7BFF)
+          private val Blue = Color(0xFF55C8FF)
+          private val White = Color(0xFFF5F4FF)
+          private val Muted = Color(0xFF9299B0)
+
+          class MainActivity : ComponentActivity() {
+              override fun onCreate(savedInstanceState: Bundle?) {
+                  super.onCreate(savedInstanceState)
+                  window.statusBarColor = android.graphics.Color.rgb(9, 11, 20)
+                  window.navigationBarColor = android.graphics.Color.rgb(9, 11, 20)
+                  setContent { KrankrApp(this) }
+              }
+          }
+
+          @Composable
+          fun KrankrApp(context: Context) {
+              val prefs = remember {
+                  context.getSharedPreferences("krankr_data", Context.MODE_PRIVATE)
+              }
+
+              var username by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
+              var avatar by remember { mutableStateOf(prefs.getString("avatar", "🎮") ?: "🎮") }
+              var page by remember { mutableStateOf("Home") }
+              var games by remember {
+                  mutableStateOf(
+                      prefs.getStringSet(
+                          "games",
+                          setOf("Fortnite", "Minecraft")
+                      )?.toList()?.sorted() ?: listOf("Fortnite", "Minecraft")
+                  )
+              }
+              var totalMinutes by remember {
+                  mutableIntStateOf(prefs.getInt("minutes", 0))
+              }
+              var goal by remember {
+                  mutableIntStateOf(prefs.getInt("goal", 300))
+              }
+              var playing by remember { mutableStateOf(false) }
+              var seconds by remember { mutableIntStateOf(0) }
+              var showAddGame by remember { mutableStateOf(false) }
+              var newGame by remember { mutableStateOf("") }
+
+              LaunchedEffect(playing) {
+                  while (playing) {
+                      delay(1000)
+                      seconds++
+                  }
+              }
+
+              fun saveData() {
+                  prefs.edit()
+                      .putString("username", username)
+                      .putString("avatar", avatar)
+                      .putStringSet("games", games.toSet())
+                      .putInt("minutes", totalMinutes)
+                      .putInt("goal", goal)
+                      .apply()
+              }
+
+              fun finishSession() {
+                  totalMinutes += seconds / 60
+                  seconds = 0
+                  playing = false
+                  saveData()
+              }
+
+              MaterialTheme(
+                  colorScheme = darkColorScheme(
+                      background = Background,
+                      surface = Panel,
+                      primary = Purple,
+                      secondary = Blue
+                  )
+              ) {
+                  if (username.isBlank()) {
+                      WelcomeScreen(
+                          onCreate = { name, chosenAvatar ->
+                              username = name.trim()
+                              avatar = chosenAvatar
+                              saveData()
+                          }
+                      )
+                  } else {
+                      Box(
+                          Modifier
+                              .fillMaxSize()
+                              .background(Background)
+                      ) {
+                          Column(
+                              Modifier
+                                  .fillMaxSize()
+                                  .statusBarsPadding()
+                                  .navigationBarsPadding()
+                          ) {
+                              Row(
+                                  Modifier
+                                      .fillMaxWidth()
+                                      .padding(horizontal = 22.dp, vertical = 18.dp),
+                                  verticalAlignment = Alignment.CenterVertically
+                              ) {
+                                  Column {
+                                      Text(
+                                          "KRANKR",
+                                          color = White,
+                                          fontSize = 23.sp,
+                                          fontWeight = FontWeight.Black,
+                                          letterSpacing = 3.sp
+                                      )
+                                      Text(
+                                          "YOUR GAMING HUB",
+                                          color = Muted,
+                                          fontSize = 9.sp,
+                                          letterSpacing = 2.sp
+                                      )
+                                  }
+                                  Spacer(Modifier.weight(1f))
+                                  Text(avatar, fontSize = 28.sp)
+                                  Spacer(Modifier.width(8.dp))
+                                  Text(username, color = White, fontWeight = FontWeight.SemiBold)
+                              }
+
+                              Box(Modifier.weight(1f).fillMaxWidth()) {
+                                  when (page) {
+                                      "Home" -> HomePage(
+                                          username, games.size, totalMinutes, goal,
+                                          playing, seconds,
+                                          onToggle = {
+                                              if (playing) finishSession()
+                                              else playing = true
+                                          },
+                                          onGames = { page = "Games" }
+                                      )
+                                      "Games" -> GamesPage(
+                                          games,
+                                          onAdd = { showAddGame = true },
+                                          onRemove = { game ->
+                                              games = games.filterNot { it == game }
+                                              saveData()
+                                          }
+                                      )
+                                      "Stats" -> StatsPage(
+                                          totalMinutes, games.size, goal,
+                                          onGoalChange = {
+                                              goal = it
+                                              saveData()
+                                          }
+                                      )
+                                      else -> ProfilePage(
+                                          username, avatar,
+                                          onAvatar = {
+                                              avatar = it
+                                              saveData()
+                                          },
+                                          onLogout = {
+                                              if (playing) finishSession()
+                                              prefs.edit().remove("username").apply()
+                                              username = ""
+                                              page = "Home"
+                                          }
+                                      )
+                                  }
+                              }
+
+                              NavigationBar(
+                                  containerColor = Color(0xFF101421),
+                                  contentColor = White
+                              ) {
+                                  listOf("Home", "Games", "Stats", "Profile").forEach { item ->
+                                      NavigationBarItem(
+                                          selected = page == item,
+                                          onClick = { page = item },
+                                          icon = {
+                                              Text(
+                                                  when (item) {
+                                                      "Home" -> "⌂"
+                                                      "Games" -> "▣"
+                                                      "Stats" -> "▥"
+                                                      else -> "◉"
+                                                  },
+                                                  fontSize = 21.sp
+                                              )
+                                          },
+                                          label = { Text(item, fontSize = 10.sp) },
+                                          colors = NavigationBarItemDefaults.colors(
+                                              selectedIconColor = Purple,
+                                              selectedTextColor = Purple,
+                                              indicatorColor = Color(0xFF29213F),
+                                              unselectedIconColor = Muted,
+                                              unselectedTextColor = Muted
+                                          )
+                                      )
+                                  }
+                              }
+                          }
+                      }
+                  }
+
+                  if (showAddGame) {
+                      AlertDialog(
+                          onDismissRequest = { showAddGame = false },
+                          containerColor = Panel,
+                          title = { Text("Add a game", color = White) },
+                          text = {
+                              Column {
+                                  Text("Enter a game name", color = Muted)
+                                  Spacer(Modifier.height(12.dp))
+                                  OutlinedTextField(
+                                      value = newGame,
+                                      onValueChange = { newGame = it },
+                                      singleLine = true,
+                                      label = { Text("Game name") }
+                                  )
+                              }
+                          },
+                          confirmButton = {
+                              TextButton(onClick = {
+                                  if (newGame.isNotBlank() &&
+                                      games.none { it.equals(newGame.trim(), true) }) {
+                                      games = (games + newGame.trim()).sorted()
+                                      saveData()
+                                  }
+                                  newGame = ""
+                                  showAddGame = false
+                              }) {
+                                  Text("ADD", color = Purple)
+                              }
+                          },
+                          dismissButton = {
+                              TextButton(onClick = { showAddGame = false }) {
+                                  Text("CANCEL", color = Muted)
+                              }
+                          }
+                      )
+                  }
+              }
+          }
+
+          @Composable
+          fun WelcomeScreen(onCreate: (String, String) -> Unit) {
+              var name by remember { mutableStateOf("") }
+              var selected by remember { mutableStateOf("🎮") }
+              val avatars = listOf("🎮", "👾", "🐉", "⚡", "🔥", "🦊", "👑", "🚀")
+
+              Box(
+                  Modifier.fillMaxSize().background(
+                      Brush.verticalGradient(
+                          listOf(Color(0xFF17152D), Background, Background)
+                      )
+                  ),
+                  contentAlignment = Alignment.Center
+              ) {
+                  Column(
+                      Modifier.fillMaxWidth().padding(26.dp),
+                      horizontalAlignment = Alignment.CenterHorizontally
+                  ) {
+                      Text("KRANKR", color = White, fontSize = 34.sp,
+                          fontWeight = FontWeight.Black, letterSpacing = 5.sp)
+                      Text("YOUR GAMING WORLD STARTS HERE",
+                          color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                      Spacer(Modifier.height(48.dp))
+                      Text("Create your profile", color = White,
+                          fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                      Text("Choose a name and make it yours.",
+                          color = Muted, fontSize = 13.sp)
+                      Spacer(Modifier.height(24.dp))
+                      OutlinedTextField(
+                          value = name,
+                          onValueChange = { name = it },
+                          label = { Text("Your username") },
+                          singleLine = true,
+                          modifier = Modifier.fillMaxWidth(),
+                          colors = OutlinedTextFieldDefaults.colors(
+                              focusedTextColor = White,
+                              unfocusedTextColor = White,
+                              focusedBorderColor = Purple,
+                              unfocusedBorderColor = Muted
+                          )
+                      )
+                      Spacer(Modifier.height(22.dp))
+                      Text("CHOOSE YOUR AVATAR", color = Muted,
+                          fontSize = 10.sp, letterSpacing = 2.sp)
+                      Spacer(Modifier.height(12.dp))
+                      Row(
+                          Modifier.fillMaxWidth(),
+                          horizontalArrangement = Arrangement.spacedBy(8.dp),
+                          verticalAlignment = Alignment.CenterVertically
+                      ) {
+                          avatars.take(4).forEach { icon ->
+                              AvatarChoice(icon, selected == icon) { selected = icon }
+                          }
+                      }
+                      Spacer(Modifier.height(10.dp))
+                      Row(
+                          Modifier.fillMaxWidth(),
+                          horizontalArrangement = Arrangement.spacedBy(8.dp)
+                      ) {
+                          avatars.drop(4).forEach { icon ->
+                              AvatarChoice(icon, selected == icon) { selected = icon }
+                          }
+                      }
+                      Spacer(Modifier.height(30.dp))
+                      Button(
+                          onClick = { onCreate(name, selected) },
+                          enabled = name.isNotBlank(),
+                          modifier = Modifier.fillMaxWidth().height(54.dp),
+                          shape = RoundedCornerShape(18.dp),
+                          colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                      ) {
+                          Text("CREATE PROFILE  →", color = Color(0xFF100B20),
+                              fontWeight = FontWeight.Bold)
+                      }
+                      Spacer(Modifier.height(14.dp))
+                      Text("No password • Saved on this device",
+                          color = Muted, fontSize = 11.sp)
+                  }
+              }
+          }
+
+          @Composable
+          fun AvatarChoice(icon: String, selected: Boolean, onClick: () -> Unit) {
+              Box(
+                  Modifier
+                      .weight(1f)
+                      .height(58.dp)
+                      .clip(RoundedCornerShape(16.dp))
+                      .background(if (selected) Color(0xFF30244E) else Panel)
+                      .border(
+                          1.dp,
+                          if (selected) Purple else Color(0xFF292F43),
+                          RoundedCornerShape(16.dp)
+                      )
+                      .clickable { onClick() },
+                  contentAlignment = Alignment.Center
+              ) {
+                  Text(icon, fontSize = 25.sp)
+              }
+          }
+
+          @Composable
+          fun HomePage(
+              username: String,
+              gameCount: Int,
+              minutes: Int,
+              goal: Int,
+              playing: Boolean,
+              seconds: Int,
+              onToggle: () -> Unit,
+              onGames: () -> Unit
+          ) {
+              LazyColumn(
+                  modifier = Modifier.fillMaxSize(),
+                  contentPadding = PaddingValues(20.dp),
+                  verticalArrangement = Arrangement.spacedBy(16.dp)
+              ) {
+                  item {
+                      Text("WELCOME BACK,", color = Muted,
+                          fontSize = 11.sp, letterSpacing = 2.sp)
+                      Text(username, color = White, fontSize = 30.sp,
+                          fontWeight = FontWeight.Bold)
+                      Text("Ready for another session?", color = Muted, fontSize = 13.sp)
+                  }
+                  item {
+                      Box(
+                          Modifier.fillMaxWidth()
+                              .clip(RoundedCornerShape(25.dp))
+                              .background(
+                                  Brush.linearGradient(
+                                      listOf(Color(0xFF49317C), Color(0xFF172E50))
+                                  )
+                              )
+                              .padding(22.dp)
+                      ) {
+                          Column {
+                              Text("YOUR GAMING OVERVIEW",
+                                  color = Color(0xFFD7C9FF),
+                                  fontSize = 10.sp, letterSpacing = 2.sp)
+                              Spacer(Modifier.height(18.dp))
+                              Row(
+                                  Modifier.fillMaxWidth(),
+                                  horizontalArrangement = Arrangement.SpaceBetween
+                              ) {
+                                  StatNumber("$gameCount", "GAMES")
+                                  StatNumber("${minutes / 60}h ${minutes % 60}m", "PLAYTIME")
+                              }
+                              Spacer(Modifier.height(18.dp))
+                              Text("WEEKLY GOAL: $minutes / $goal MIN",
+                                  color = White, fontSize = 11.sp)
+                              Spacer(Modifier.height(8.dp))
+                              LinearProgressIndicator(
+                                  progress = { (minutes.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                                  modifier = Modifier.fillMaxWidth().height(7.dp)
+                                      .clip(RoundedCornerShape(8.dp)),
+                                  color = Color(0xFFD5BDFF),
+                                  trackColor = Color(0x557F75A0)
+                              )
+                          }
+                      }
+                  }
+                  item {
+                      SectionTitle("PLAY SESSION", "Track your time")
+                      GlassCard {
+                          Text(
+                              if (playing) "SESSION IN PROGRESS" else "READY WHEN YOU ARE",
+                              color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp
+                          )
+                          Spacer(Modifier.height(8.dp))
+                          Text(
+                              "%02d:%02d:%02d".format(
+                                  seconds / 3600, (seconds / 60) % 60, seconds % 60
+                              ),
+                              color = White, fontSize = 34.sp,
+                              fontWeight = FontWeight.Light
+                          )
+                          Spacer(Modifier.height(12.dp))
+                          Button(
+                              onClick = onToggle,
+                              modifier = Modifier.fillMaxWidth().height(48.dp),
+                              colors = ButtonDefaults.buttonColors(
+                                  containerColor = if (playing) Color(0xFF543B67) else Purple
+                              ),
+                              shape = RoundedCornerShape(14.dp)
+                          ) {
+                              Text(
+                                  if (playing) "■  END SESSION" else "▶  START SESSION",
+                                  color = White, fontWeight = FontWeight.Bold
+                              )
+                          }
+                      }
+                  }
+                  item {
+                      SectionTitle("YOUR LIBRARY", "Your games")
+                      GlassCard {
+                          Text("Manage your games and keep your library organized.",
+                              color = Muted, fontSize = 13.sp)
+                          Spacer(Modifier.height(12.dp))
+                          OutlinedButton(
+                              onClick = onGames,
+                              modifier = Modifier.fillMaxWidth(),
+                              colors = ButtonDefaults.outlinedButtonColors(contentColor = Purple)
+                          ) {
+                              Text("OPEN GAME LIBRARY  →")
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun GamesPage(
+              games: List<String>,
+              onAdd: () -> Unit,
+              onRemove: (String) -> Unit
+          ) {
+              Column(Modifier.fillMaxSize().padding(20.dp)) {
+                  Text("MY GAMES", color = White, fontSize = 27.sp,
+                      fontWeight = FontWeight.Bold)
+                  Text("${games.size} games in your library",
+                      color = Muted, fontSize = 13.sp)
+                  Spacer(Modifier.height(18.dp))
+                  Button(
+                      onClick = onAdd,
+                      modifier = Modifier.fillMaxWidth(),
+                      colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                  ) {
+                      Text("+  ADD A GAME", color = Color(0xFF100B20),
+                          fontWeight = FontWeight.Bold)
+                  }
+                  Spacer(Modifier.height(12.dp))
+                  LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                      items(games) { game ->
+                          GlassCard {
+                              Row(verticalAlignment = Alignment.CenterVertically) {
+                                  Text("🎮", fontSize = 26.sp)
+                                  Spacer(Modifier.width(14.dp))
+                                  Text(game, color = White, fontSize = 16.sp,
+                                      fontWeight = FontWeight.SemiBold,
+                                      modifier = Modifier.weight(1f))
+                                  TextButton(onClick = { onRemove(game) }) {
+                                      Text("REMOVE", color = Color(0xFFFF8D9B),
+                                          fontSize = 10.sp)
+                                  }
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+
+          @Composable
+          fun StatsPage(
+              minutes: Int,
+              games: Int,
+              goal: Int,
+              onGoalChange: (Int) -> Unit
+          ) {
+              Column(
+                  Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+                  verticalArrangement = Arrangement.spacedBy(16.dp)
+              ) {
+                  Text("YOUR STATS", color = White, fontSize = 27.sp,
+                      fontWeight = FontWeight.Bold)
+                  Text("Your personal gaming overview.", color = Muted, fontSize = 13.sp)
+                  Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                      Box(Modifier.weight(1f)) {
+                          GlassCard {
+                              StatNumber("${minutes / 60}h", "TOTAL HOURS")
+                          }
+                      }
+                      Box(Modifier.weight(1f)) {
+                          GlassCard {
+                              StatNumber("$games", "GAMES")
+                          }
+                      }
+                  }
+                  GlassCard {
+                      Text("WEEKLY PLAYTIME GOAL", color = White,
+                          fontWeight = FontWeight.Bold)
+                      Text("$minutes of $goal minutes", color = Muted, fontSize = 12.sp)
+                      Spacer(Modifier.height(12.dp))
+                      LinearProgressIndicator(
+                          progress = { (minutes.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f) },
+                          modifier = Modifier.fillMaxWidth().height(8.dp)
+                              .clip(RoundedCornerShape(8.dp)),
+                          color = Purple,
+                          trackColor = Color(0xFF303449)
+                      )
+                      Spacer(Modifier.height(14.dp))
+                      Text("Change your goal", color = Muted, fontSize = 12.sp)
+                      Slider(
+                          value = goal.toFloat(),
+                          onValueChange = { onGoalChange(it.toInt()) },
+                          valueRange = 60f..1200f,
+                          colors = SliderDefaults.colors(
+                              thumbColor = Purple,
+                              activeTrackColor = Purple
+                          )
+                      )
+                      Text("$goal minutes per week", color = White, fontSize = 13.sp)
+                  }
+                  Text("Stats are based on sessions recorded in KRANKR.",
+                      color = Muted, fontSize = 11.sp)
+              }
+          }
+
+          @Composable
+          fun ProfilePage(
+              username: String,
+              avatar: String,
+              onAvatar: (String) -> Unit,
+              onLogout: () -> Unit
+          ) {
+              Column(
+                  Modifier.fillMaxSize().padding(22.dp),
+                  horizontalAlignment = Alignment.CenterHorizontally
+              ) {
+                  Text("YOUR PROFILE", color = White, fontSize = 26.sp,
+                      fontWeight = FontWeight.Bold)
+                  Spacer(Modifier.height(35.dp))
+                  Text(avatar, fontSize = 76.sp)
+                  Spacer(Modifier.height(12.dp))
+                  Text(username, color = White, fontSize = 24.sp,
+                      fontWeight = FontWeight.Bold)
+                  Text("KRANKR PLAYER", color = Purple, fontSize = 10.sp,
+                      letterSpacing = 2.sp)
+                  Spacer(Modifier.height(30.dp))
+                  GlassCard {
+                      Text("CHANGE AVATAR", color = Muted, fontSize = 11.sp)
+                      Spacer(Modifier.height(12.dp))
+                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                          listOf("🎮", "👾", "🐉", "⚡").forEach {
+                              AvatarChoice(it, avatar == it) { onAvatar(it) }
+                          }
+                      }
+                      Spacer(Modifier.height(8.dp))
+                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                          listOf("🔥", "🦊", "👑", "🚀").forEach {
+                              AvatarChoice(it, avatar == it) { onAvatar(it) }
+                          }
+                      }
+                  }
+                  Spacer(Modifier.height(20.dp))
+                  Text(
+                      "Your profile is stored locally on this device. There is no password.",
+                      color = Muted, fontSize = 12.sp
+                  )
+                  Spacer(Modifier.weight(1f))
+                  OutlinedButton(
+                      onClick = onLogout,
+                      modifier = Modifier.fillMaxWidth(),
+                      colors = ButtonDefaults.outlinedButtonColors(
+                          contentColor = Color(0xFFFF8D9B)
+                      )
+                  ) {
+                      Text("SWITCH PROFILE")
+                  }
+              }
+          }
+
+          @Composable
+          fun GlassCard(content: @Composable ColumnScope.() -> Unit) {
+              Column(
+                  Modifier.fillMaxWidth()
+                      .clip(RoundedCornerShape(22.dp))
+                      .background(
+                          Brush.linearGradient(
+                              listOf(Color(0xFF1B2033), Color(0xFF111624))
+                          )
+                      )
+                      .border(1.dp, Color(0xFF30364B), RoundedCornerShape(22.dp))
+                      .padding(18.dp),
+                  content = content
+              )
+          }
+
+          @Composable
+          fun StatNumber(value: String, label: String) {
+              Column {
+                  Text(value, color = White, fontSize = 25.sp,
+                      fontWeight = FontWeight.Bold)
+                  Text(label, color = Color(0xFFC0B4E8),
+                      fontSize = 9.sp, letterSpacing = 1.5.sp)
+              }
+          }
+
+          @Composable
+          fun SectionTitle(title: String, subtitle: String) {
+              Column {
+                  Text(title, color = White, fontSize = 16.sp,
+                      fontWeight = FontWeight.Bold)
+                  Text(subtitle, color = Muted, fontSize = 11.sp)
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: |
+          gradle --no-daemon :app:assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk KRANKR.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: KRANKR-APK
+          path: KRANKR.apk
