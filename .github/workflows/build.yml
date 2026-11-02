@@ -128,7 +128,6 @@ jobs:
           import androidx.compose.foundation.lazy.LazyColumn
           import androidx.compose.foundation.lazy.items
           import androidx.compose.foundation.shape.RoundedCornerShape
-          import androidx.compose.foundation.text.BasicTextField
           import androidx.compose.material3.*
           import androidx.compose.runtime.*
           import androidx.compose.ui.*
@@ -161,9 +160,14 @@ jobs:
                   context.getSharedPreferences("krankr_data", Context.MODE_PRIVATE)
               }
 
-              var username by remember { mutableStateOf(prefs.getString("username", "") ?: "") }
-              var avatar by remember { mutableStateOf(prefs.getString("avatar", "🎮") ?: "🎮") }
+              var username by remember {
+                  mutableStateOf(prefs.getString("username", "") ?: "")
+              }
+              var avatar by remember {
+                  mutableStateOf(prefs.getString("avatar", "🎮") ?: "🎮")
+              }
               var page by remember { mutableStateOf("Home") }
+
               var games by remember {
                   mutableStateOf(
                       prefs.getStringSet(
@@ -172,12 +176,15 @@ jobs:
                       )?.toList()?.sorted() ?: listOf("Fortnite", "Minecraft")
                   )
               }
+
               var totalMinutes by remember {
                   mutableIntStateOf(prefs.getInt("minutes", 0))
               }
+
               var goal by remember {
                   mutableIntStateOf(prefs.getInt("goal", 300))
               }
+
               var playing by remember { mutableStateOf(false) }
               var seconds by remember { mutableIntStateOf(0) }
               var showAddGame by remember { mutableStateOf(false) }
@@ -216,13 +223,11 @@ jobs:
                   )
               ) {
                   if (username.isBlank()) {
-                      WelcomeScreen(
-                          onCreate = { name, chosenAvatar ->
-                              username = name.trim()
-                              avatar = chosenAvatar
-                              saveData()
-                          }
-                      )
+                      WelcomeScreen { name, chosenAvatar ->
+                          username = name.trim()
+                          avatar = chosenAvatar
+                          saveData()
+                      }
                   } else {
                       Box(
                           Modifier
@@ -256,40 +261,55 @@ jobs:
                                           letterSpacing = 2.sp
                                       )
                                   }
+
                                   Spacer(Modifier.weight(1f))
                                   Text(avatar, fontSize = 28.sp)
                                   Spacer(Modifier.width(8.dp))
-                                  Text(username, color = White, fontWeight = FontWeight.SemiBold)
+                                  Text(
+                                      username,
+                                      color = White,
+                                      fontWeight = FontWeight.SemiBold
+                                  )
                               }
 
                               Box(Modifier.weight(1f).fillMaxWidth()) {
                                   when (page) {
                                       "Home" -> HomePage(
-                                          username, games.size, totalMinutes, goal,
-                                          playing, seconds,
+                                          username = username,
+                                          gameCount = games.size,
+                                          minutes = totalMinutes,
+                                          goal = goal,
+                                          playing = playing,
+                                          seconds = seconds,
                                           onToggle = {
                                               if (playing) finishSession()
                                               else playing = true
                                           },
                                           onGames = { page = "Games" }
                                       )
+
                                       "Games" -> GamesPage(
-                                          games,
+                                          games = games,
                                           onAdd = { showAddGame = true },
                                           onRemove = { game ->
                                               games = games.filterNot { it == game }
                                               saveData()
                                           }
                                       )
+
                                       "Stats" -> StatsPage(
-                                          totalMinutes, games.size, goal,
+                                          minutes = totalMinutes,
+                                          games = games.size,
+                                          goal = goal,
                                           onGoalChange = {
                                               goal = it
                                               saveData()
                                           }
                                       )
+
                                       else -> ProfilePage(
-                                          username, avatar,
+                                          username = username,
+                                          avatar = avatar,
                                           onAvatar = {
                                               avatar = it
                                               saveData()
@@ -357,8 +377,10 @@ jobs:
                           },
                           confirmButton = {
                               TextButton(onClick = {
-                                  if (newGame.isNotBlank() &&
-                                      games.none { it.equals(newGame.trim(), true) }) {
+                                  if (
+                                      newGame.isNotBlank() &&
+                                      games.none { it.equals(newGame.trim(), true) }
+                                  ) {
                                       games = (games + newGame.trim()).sorted()
                                       saveData()
                                   }
@@ -382,30 +404,61 @@ jobs:
           fun WelcomeScreen(onCreate: (String, String) -> Unit) {
               var name by remember { mutableStateOf("") }
               var selected by remember { mutableStateOf("🎮") }
-              val avatars = listOf("🎮", "👾", "🐉", "⚡", "🔥", "🦊", "👑", "🚀")
+
+              val avatars = listOf(
+                  "🎮", "👾", "🐉", "⚡",
+                  "🔥", "🦊", "👑", "🚀"
+              )
 
               Box(
-                  Modifier.fillMaxSize().background(
-                      Brush.verticalGradient(
-                          listOf(Color(0xFF17152D), Background, Background)
-                      )
-                  ),
+                  Modifier
+                      .fillMaxSize()
+                      .background(
+                          Brush.verticalGradient(
+                              listOf(Color(0xFF17152D), Background, Background)
+                          )
+                      ),
                   contentAlignment = Alignment.Center
               ) {
                   Column(
-                      Modifier.fillMaxWidth().padding(26.dp),
+                      Modifier
+                          .fillMaxWidth()
+                          .verticalScroll(rememberScrollState())
+                          .padding(26.dp),
                       horizontalAlignment = Alignment.CenterHorizontally
                   ) {
-                      Text("KRANKR", color = White, fontSize = 34.sp,
-                          fontWeight = FontWeight.Black, letterSpacing = 5.sp)
-                      Text("YOUR GAMING WORLD STARTS HERE",
-                          color = Muted, fontSize = 10.sp, letterSpacing = 2.sp)
+                      Text(
+                          "KRANKR",
+                          color = White,
+                          fontSize = 34.sp,
+                          fontWeight = FontWeight.Black,
+                          letterSpacing = 5.sp
+                      )
+
+                      Text(
+                          "YOUR GAMING WORLD STARTS HERE",
+                          color = Muted,
+                          fontSize = 10.sp,
+                          letterSpacing = 2.sp
+                      )
+
                       Spacer(Modifier.height(48.dp))
-                      Text("Create your profile", color = White,
-                          fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                      Text("Choose a name and make it yours.",
-                          color = Muted, fontSize = 13.sp)
+
+                      Text(
+                          "Create your profile",
+                          color = White,
+                          fontSize = 25.sp,
+                          fontWeight = FontWeight.Bold
+                      )
+
+                      Text(
+                          "Choose a name and make it yours.",
+                          color = Muted,
+                          fontSize = 13.sp
+                      )
+
                       Spacer(Modifier.height(24.dp))
+
                       OutlinedTextField(
                           value = name,
                           onValueChange = { name = it },
@@ -419,54 +472,78 @@ jobs:
                               unfocusedBorderColor = Muted
                           )
                       )
+
                       Spacer(Modifier.height(22.dp))
-                      Text("CHOOSE YOUR AVATAR", color = Muted,
-                          fontSize = 10.sp, letterSpacing = 2.sp)
+
+                      Text(
+                          "CHOOSE YOUR AVATAR",
+                          color = Muted,
+                          fontSize = 10.sp,
+                          letterSpacing = 2.sp
+                      )
+
                       Spacer(Modifier.height(12.dp))
-                      Row(
-                          Modifier.fillMaxWidth(),
-                          horizontalArrangement = Arrangement.spacedBy(8.dp),
-                          verticalAlignment = Alignment.CenterVertically
-                      ) {
-                          avatars.take(4).forEach { icon ->
-                              AvatarChoice(icon, selected == icon) { selected = icon }
+
+                      avatars.chunked(4).forEach { group ->
+                          Row(
+                              Modifier.fillMaxWidth(),
+                              horizontalArrangement = Arrangement.SpaceEvenly
+                          ) {
+                              group.forEach { icon ->
+                                  AvatarChoice(
+                                      icon = icon,
+                                      selected = selected == icon,
+                                      onClick = { selected = icon }
+                                  )
+                              }
                           }
+                          Spacer(Modifier.height(10.dp))
                       }
-                      Spacer(Modifier.height(10.dp))
-                      Row(
-                          Modifier.fillMaxWidth(),
-                          horizontalArrangement = Arrangement.spacedBy(8.dp)
-                      ) {
-                          avatars.drop(4).forEach { icon ->
-                              AvatarChoice(icon, selected == icon) { selected = icon }
-                          }
-                      }
-                      Spacer(Modifier.height(30.dp))
+
+                      Spacer(Modifier.height(20.dp))
+
                       Button(
                           onClick = { onCreate(name, selected) },
                           enabled = name.isNotBlank(),
-                          modifier = Modifier.fillMaxWidth().height(54.dp),
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .height(54.dp),
                           shape = RoundedCornerShape(18.dp),
-                          colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                          colors = ButtonDefaults.buttonColors(
+                              containerColor = Purple
+                          )
                       ) {
-                          Text("CREATE PROFILE  →", color = Color(0xFF100B20),
-                              fontWeight = FontWeight.Bold)
+                          Text(
+                              "CREATE PROFILE  →",
+                              color = Color(0xFF100B20),
+                              fontWeight = FontWeight.Bold
+                          )
                       }
+
                       Spacer(Modifier.height(14.dp))
-                      Text("No password • Saved on this device",
-                          color = Muted, fontSize = 11.sp)
+
+                      Text(
+                          "No password • Saved on this device",
+                          color = Muted,
+                          fontSize = 11.sp
+                      )
                   }
               }
           }
 
           @Composable
-          fun AvatarChoice(icon: String, selected: Boolean, onClick: () -> Unit) {
+          fun AvatarChoice(
+              icon: String,
+              selected: Boolean,
+              onClick: () -> Unit
+          ) {
               Box(
                   Modifier
-                      .weight(1f)
-                      .height(58.dp)
+                      .size(58.dp)
                       .clip(RoundedCornerShape(16.dp))
-                      .background(if (selected) Color(0xFF30244E) else Panel)
+                      .background(
+                          if (selected) Color(0xFF30244E) else Panel
+                      )
                       .border(
                           1.dp,
                           if (selected) Purple else Color(0xFF292F43),
@@ -496,42 +573,79 @@ jobs:
                   verticalArrangement = Arrangement.spacedBy(16.dp)
               ) {
                   item {
-                      Text("WELCOME BACK,", color = Muted,
-                          fontSize = 11.sp, letterSpacing = 2.sp)
-                      Text(username, color = White, fontSize = 30.sp,
-                          fontWeight = FontWeight.Bold)
-                      Text("Ready for another session?", color = Muted, fontSize = 13.sp)
+                      Text(
+                          "WELCOME BACK,",
+                          color = Muted,
+                          fontSize = 11.sp,
+                          letterSpacing = 2.sp
+                      )
+                      Text(
+                          username,
+                          color = White,
+                          fontSize = 30.sp,
+                          fontWeight = FontWeight.Bold
+                      )
+                      Text(
+                          "Ready for another session?",
+                          color = Muted,
+                          fontSize = 13.sp
+                      )
                   }
+
                   item {
                       Box(
-                          Modifier.fillMaxWidth()
+                          Modifier
+                              .fillMaxWidth()
                               .clip(RoundedCornerShape(25.dp))
                               .background(
                                   Brush.linearGradient(
-                                      listOf(Color(0xFF49317C), Color(0xFF172E50))
+                                      listOf(
+                                          Color(0xFF49317C),
+                                          Color(0xFF172E50)
+                                      )
                                   )
                               )
                               .padding(22.dp)
                       ) {
                           Column {
-                              Text("YOUR GAMING OVERVIEW",
+                              Text(
+                                  "YOUR GAMING OVERVIEW",
                                   color = Color(0xFFD7C9FF),
-                                  fontSize = 10.sp, letterSpacing = 2.sp)
+                                  fontSize = 10.sp,
+                                  letterSpacing = 2.sp
+                              )
+
                               Spacer(Modifier.height(18.dp))
+
                               Row(
                                   Modifier.fillMaxWidth(),
                                   horizontalArrangement = Arrangement.SpaceBetween
                               ) {
                                   StatNumber("$gameCount", "GAMES")
-                                  StatNumber("${minutes / 60}h ${minutes % 60}m", "PLAYTIME")
+                                  StatNumber(
+                                      "${minutes / 60}h ${minutes % 60}m",
+                                      "PLAYTIME"
+                                  )
                               }
+
                               Spacer(Modifier.height(18.dp))
-                              Text("WEEKLY GOAL: $minutes / $goal MIN",
-                                  color = White, fontSize = 11.sp)
+
+                              Text(
+                                  "WEEKLY GOAL: $minutes / $goal MIN",
+                                  color = White,
+                                  fontSize = 11.sp
+                              )
+
                               Spacer(Modifier.height(8.dp))
+
                               LinearProgressIndicator(
-                                  progress = { (minutes.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f) },
-                                  modifier = Modifier.fillMaxWidth().height(7.dp)
+                                  progress = {
+                                      (minutes.toFloat() /
+                                          goal.coerceAtLeast(1)).coerceIn(0f, 1f)
+                                  },
+                                  modifier = Modifier
+                                      .fillMaxWidth()
+                                      .height(7.dp)
                                       .clip(RoundedCornerShape(8.dp)),
                                   color = Color(0xFFD5BDFF),
                                   trackColor = Color(0x557F75A0)
@@ -539,47 +653,73 @@ jobs:
                           }
                       }
                   }
+
                   item {
                       SectionTitle("PLAY SESSION", "Track your time")
+
                       GlassCard {
                           Text(
-                              if (playing) "SESSION IN PROGRESS" else "READY WHEN YOU ARE",
-                              color = Muted, fontSize = 10.sp, letterSpacing = 1.5.sp
+                              if (playing) "SESSION IN PROGRESS"
+                              else "READY WHEN YOU ARE",
+                              color = Muted,
+                              fontSize = 10.sp,
+                              letterSpacing = 1.5.sp
                           )
+
                           Spacer(Modifier.height(8.dp))
+
                           Text(
                               "%02d:%02d:%02d".format(
-                                  seconds / 3600, (seconds / 60) % 60, seconds % 60
+                                  seconds / 3600,
+                                  (seconds / 60) % 60,
+                                  seconds % 60
                               ),
-                              color = White, fontSize = 34.sp,
+                              color = White,
+                              fontSize = 34.sp,
                               fontWeight = FontWeight.Light
                           )
+
                           Spacer(Modifier.height(12.dp))
+
                           Button(
                               onClick = onToggle,
-                              modifier = Modifier.fillMaxWidth().height(48.dp),
+                              modifier = Modifier
+                                  .fillMaxWidth()
+                                  .height(48.dp),
                               colors = ButtonDefaults.buttonColors(
-                                  containerColor = if (playing) Color(0xFF543B67) else Purple
+                                  containerColor = if (playing)
+                                      Color(0xFF543B67) else Purple
                               ),
                               shape = RoundedCornerShape(14.dp)
                           ) {
                               Text(
-                                  if (playing) "■  END SESSION" else "▶  START SESSION",
-                                  color = White, fontWeight = FontWeight.Bold
+                                  if (playing) "■  END SESSION"
+                                  else "▶  START SESSION",
+                                  color = White,
+                                  fontWeight = FontWeight.Bold
                               )
                           }
                       }
                   }
+
                   item {
                       SectionTitle("YOUR LIBRARY", "Your games")
+
                       GlassCard {
-                          Text("Manage your games and keep your library organized.",
-                              color = Muted, fontSize = 13.sp)
+                          Text(
+                              "Manage your games and keep your library organized.",
+                              color = Muted,
+                              fontSize = 13.sp
+                          )
+
                           Spacer(Modifier.height(12.dp))
+
                           OutlinedButton(
                               onClick = onGames,
                               modifier = Modifier.fillMaxWidth(),
-                              colors = ButtonDefaults.outlinedButtonColors(contentColor = Purple)
+                              colors = ButtonDefaults.outlinedButtonColors(
+                                  contentColor = Purple
+                              )
                           ) {
                               Text("OPEN GAME LIBRARY  →")
                           }
@@ -594,33 +734,67 @@ jobs:
               onAdd: () -> Unit,
               onRemove: (String) -> Unit
           ) {
-              Column(Modifier.fillMaxSize().padding(20.dp)) {
-                  Text("MY GAMES", color = White, fontSize = 27.sp,
-                      fontWeight = FontWeight.Bold)
-                  Text("${games.size} games in your library",
-                      color = Muted, fontSize = 13.sp)
+              Column(
+                  Modifier
+                      .fillMaxSize()
+                      .padding(20.dp)
+              ) {
+                  Text(
+                      "MY GAMES",
+                      color = White,
+                      fontSize = 27.sp,
+                      fontWeight = FontWeight.Bold
+                  )
+
+                  Text(
+                      "${games.size} games in your library",
+                      color = Muted,
+                      fontSize = 13.sp
+                  )
+
                   Spacer(Modifier.height(18.dp))
+
                   Button(
                       onClick = onAdd,
                       modifier = Modifier.fillMaxWidth(),
-                      colors = ButtonDefaults.buttonColors(containerColor = Purple)
+                      colors = ButtonDefaults.buttonColors(
+                          containerColor = Purple
+                      )
                   ) {
-                      Text("+  ADD A GAME", color = Color(0xFF100B20),
-                          fontWeight = FontWeight.Bold)
+                      Text(
+                          "+  ADD A GAME",
+                          color = Color(0xFF100B20),
+                          fontWeight = FontWeight.Bold
+                      )
                   }
+
                   Spacer(Modifier.height(12.dp))
-                  LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
+                  LazyColumn(
+                      verticalArrangement = Arrangement.spacedBy(10.dp)
+                  ) {
                       items(games) { game ->
                           GlassCard {
-                              Row(verticalAlignment = Alignment.CenterVertically) {
+                              Row(
+                                  verticalAlignment = Alignment.CenterVertically
+                              ) {
                                   Text("🎮", fontSize = 26.sp)
                                   Spacer(Modifier.width(14.dp))
-                                  Text(game, color = White, fontSize = 16.sp,
+
+                                  Text(
+                                      game,
+                                      color = White,
+                                      fontSize = 16.sp,
                                       fontWeight = FontWeight.SemiBold,
-                                      modifier = Modifier.weight(1f))
+                                      modifier = Modifier.weight(1f)
+                                  )
+
                                   TextButton(onClick = { onRemove(game) }) {
-                                      Text("REMOVE", color = Color(0xFFFF8D9B),
-                                          fontSize = 10.sp)
+                                      Text(
+                                          "REMOVE",
+                                          color = Color(0xFFFF8D9B),
+                                          fontSize = 10.sp
+                                      )
                                   }
                               }
                           }
@@ -637,38 +811,75 @@ jobs:
               onGoalChange: (Int) -> Unit
           ) {
               Column(
-                  Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+                  Modifier
+                      .fillMaxSize()
+                      .verticalScroll(rememberScrollState())
+                      .padding(20.dp),
                   verticalArrangement = Arrangement.spacedBy(16.dp)
               ) {
-                  Text("YOUR STATS", color = White, fontSize = 27.sp,
-                      fontWeight = FontWeight.Bold)
-                  Text("Your personal gaming overview.", color = Muted, fontSize = 13.sp)
+                  Text(
+                      "YOUR STATS",
+                      color = White,
+                      fontSize = 27.sp,
+                      fontWeight = FontWeight.Bold
+                  )
+
+                  Text(
+                      "Your personal gaming overview.",
+                      color = Muted,
+                      fontSize = 13.sp
+                  )
+
                   Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                       Box(Modifier.weight(1f)) {
                           GlassCard {
                               StatNumber("${minutes / 60}h", "TOTAL HOURS")
                           }
                       }
+
                       Box(Modifier.weight(1f)) {
                           GlassCard {
                               StatNumber("$games", "GAMES")
                           }
                       }
                   }
+
                   GlassCard {
-                      Text("WEEKLY PLAYTIME GOAL", color = White,
-                          fontWeight = FontWeight.Bold)
-                      Text("$minutes of $goal minutes", color = Muted, fontSize = 12.sp)
+                      Text(
+                          "WEEKLY PLAYTIME GOAL",
+                          color = White,
+                          fontWeight = FontWeight.Bold
+                      )
+
+                      Text(
+                          "$minutes of $goal minutes",
+                          color = Muted,
+                          fontSize = 12.sp
+                      )
+
                       Spacer(Modifier.height(12.dp))
+
                       LinearProgressIndicator(
-                          progress = { (minutes.toFloat() / goal.coerceAtLeast(1)).coerceIn(0f, 1f) },
-                          modifier = Modifier.fillMaxWidth().height(8.dp)
+                          progress = {
+                              (minutes.toFloat() /
+                                  goal.coerceAtLeast(1)).coerceIn(0f, 1f)
+                          },
+                          modifier = Modifier
+                              .fillMaxWidth()
+                              .height(8.dp)
                               .clip(RoundedCornerShape(8.dp)),
                           color = Purple,
                           trackColor = Color(0xFF303449)
                       )
+
                       Spacer(Modifier.height(14.dp))
-                      Text("Change your goal", color = Muted, fontSize = 12.sp)
+
+                      Text(
+                          "Change your goal",
+                          color = Muted,
+                          fontSize = 12.sp
+                      )
+
                       Slider(
                           value = goal.toFloat(),
                           onValueChange = { onGoalChange(it.toInt()) },
@@ -678,10 +889,19 @@ jobs:
                               activeTrackColor = Purple
                           )
                       )
-                      Text("$goal minutes per week", color = White, fontSize = 13.sp)
+
+                      Text(
+                          "$goal minutes per week",
+                          color = White,
+                          fontSize = 13.sp
+                      )
                   }
-                  Text("Stats are based on sessions recorded in KRANKR.",
-                      color = Muted, fontSize = 11.sp)
+
+                  Text(
+                      "Stats are based on sessions recorded in KRANKR.",
+                      color = Muted,
+                      fontSize = 11.sp
+                  )
               }
           }
 
@@ -693,40 +913,77 @@ jobs:
               onLogout: () -> Unit
           ) {
               Column(
-                  Modifier.fillMaxSize().padding(22.dp),
+                  Modifier
+                      .fillMaxSize()
+                      .padding(22.dp),
                   horizontalAlignment = Alignment.CenterHorizontally
               ) {
-                  Text("YOUR PROFILE", color = White, fontSize = 26.sp,
-                      fontWeight = FontWeight.Bold)
+                  Text(
+                      "YOUR PROFILE",
+                      color = White,
+                      fontSize = 26.sp,
+                      fontWeight = FontWeight.Bold
+                  )
+
                   Spacer(Modifier.height(35.dp))
                   Text(avatar, fontSize = 76.sp)
                   Spacer(Modifier.height(12.dp))
-                  Text(username, color = White, fontSize = 24.sp,
-                      fontWeight = FontWeight.Bold)
-                  Text("KRANKR PLAYER", color = Purple, fontSize = 10.sp,
-                      letterSpacing = 2.sp)
+
+                  Text(
+                      username,
+                      color = White,
+                      fontSize = 24.sp,
+                      fontWeight = FontWeight.Bold
+                  )
+
+                  Text(
+                      "KRANKR PLAYER",
+                      color = Purple,
+                      fontSize = 10.sp,
+                      letterSpacing = 2.sp
+                  )
+
                   Spacer(Modifier.height(30.dp))
+
                   GlassCard {
-                      Text("CHANGE AVATAR", color = Muted, fontSize = 11.sp)
+                      Text(
+                          "CHANGE AVATAR",
+                          color = Muted,
+                          fontSize = 11.sp
+                      )
+
                       Spacer(Modifier.height(12.dp))
-                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                          listOf("🎮", "👾", "🐉", "⚡").forEach {
-                              AvatarChoice(it, avatar == it) { onAvatar(it) }
+
+                      listOf(
+                          listOf("🎮", "👾", "🐉", "⚡"),
+                          listOf("🔥", "🦊", "👑", "🚀")
+                      ).forEach { group ->
+                          Row(
+                              Modifier.fillMaxWidth(),
+                              horizontalArrangement = Arrangement.SpaceEvenly
+                          ) {
+                              group.forEach { icon ->
+                                  AvatarChoice(
+                                      icon = icon,
+                                      selected = avatar == icon,
+                                      onClick = { onAvatar(icon) }
+                                  )
+                              }
                           }
-                      }
-                      Spacer(Modifier.height(8.dp))
-                      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                          listOf("🔥", "🦊", "👑", "🚀").forEach {
-                              AvatarChoice(it, avatar == it) { onAvatar(it) }
-                          }
+                          Spacer(Modifier.height(8.dp))
                       }
                   }
+
                   Spacer(Modifier.height(20.dp))
+
                   Text(
                       "Your profile is stored locally on this device. There is no password.",
-                      color = Muted, fontSize = 12.sp
+                      color = Muted,
+                      fontSize = 12.sp
                   )
+
                   Spacer(Modifier.weight(1f))
+
                   OutlinedButton(
                       onClick = onLogout,
                       modifier = Modifier.fillMaxWidth(),
@@ -742,14 +999,22 @@ jobs:
           @Composable
           fun GlassCard(content: @Composable ColumnScope.() -> Unit) {
               Column(
-                  Modifier.fillMaxWidth()
+                  Modifier
+                      .fillMaxWidth()
                       .clip(RoundedCornerShape(22.dp))
                       .background(
                           Brush.linearGradient(
-                              listOf(Color(0xFF1B2033), Color(0xFF111624))
+                              listOf(
+                                  Color(0xFF1B2033),
+                                  Color(0xFF111624)
+                              )
                           )
                       )
-                      .border(1.dp, Color(0xFF30364B), RoundedCornerShape(22.dp))
+                      .border(
+                          1.dp,
+                          Color(0xFF30364B),
+                          RoundedCornerShape(22.dp)
+                      )
                       .padding(18.dp),
                   content = content
               )
@@ -758,19 +1023,37 @@ jobs:
           @Composable
           fun StatNumber(value: String, label: String) {
               Column {
-                  Text(value, color = White, fontSize = 25.sp,
-                      fontWeight = FontWeight.Bold)
-                  Text(label, color = Color(0xFFC0B4E8),
-                      fontSize = 9.sp, letterSpacing = 1.5.sp)
+                  Text(
+                      value,
+                      color = White,
+                      fontSize = 25.sp,
+                      fontWeight = FontWeight.Bold
+                  )
+
+                  Text(
+                      label,
+                      color = Color(0xFFC0B4E8),
+                      fontSize = 9.sp,
+                      letterSpacing = 1.5.sp
+                  )
               }
           }
 
           @Composable
           fun SectionTitle(title: String, subtitle: String) {
               Column {
-                  Text(title, color = White, fontSize = 16.sp,
-                      fontWeight = FontWeight.Bold)
-                  Text(subtitle, color = Muted, fontSize = 11.sp)
+                  Text(
+                      title,
+                      color = White,
+                      fontSize = 16.sp,
+                      fontWeight = FontWeight.Bold
+                  )
+
+                  Text(
+                      subtitle,
+                      color = Muted,
+                      fontSize = 11.sp
+                  )
               }
           }
           EOF
